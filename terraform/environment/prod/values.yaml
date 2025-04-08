@@ -1,0 +1,48 @@
+prometheus:
+  prometheusSpec:
+    retention: "14d"
+    enableAdminAPI: true
+    scrapeInterval: "15s"
+    storageSpec:
+      volumeClaimTemplate:
+        spec:
+          storageClassName: "gp2"
+          accessModes: ["ReadWriteOnce"]
+          resources:
+            requests:
+              storage: "20Gi"
+  externalLabels:
+    cluster: "eks-cluster"
+
+grafana:
+  adminPassword: "StrongPassword123"
+  persistence:
+    enabled: true
+    storageClassName: "gp2"
+    size: 10Gi
+  service:
+    type: LoadBalancer
+  ingress:
+    enabled: true
+    annotations:
+      kubernetes.io/ingress.class: "alb"
+      alb.ingress.kubernetes.io/scheme: "internet-facing"
+    hosts:
+      - "grafana.darpan.cloud"
+
+alertmanager:
+  enabled: true
+  alertmanagerSpec:
+    storage:
+      volumeClaimTemplate:
+        spec:
+          storageClassName: "gp2"
+          resources:
+            requests:
+              storage: "10Gi"
+
+kubeStateMetrics:
+  enabled: true
+
+nodeExporter:
+  enabled: true

@@ -1,0 +1,112 @@
+name: Build and Deploy Docker Image to EKS
+
+on:
+  push:
+    branches:
+      - bq-training-image-api-task
+
+  workflow_dispatch:
+    inputs:
+      rollback_revision:
+        description: 'Helm revision number to rollback to'
+        required: false
+        default: '0'  # If not provided, will rollback to previous version
+
+env:
+  CLUSTER_NAME: cluster
+  NAMESPACE: image-api
+  RELEASE_NAME: image-api-release
+  REPOSITORY_NAME: image-api/image-api
+
+jobs:
+  build-and-deploy:
+    name: Build and Deploy to EKS
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push'
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v3
+
+      - name: Set Image Tag
+        id: image_tag
+        run: echo "tag=${GITHUB_SHA}" >> $GITHUB_OUTPUT
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v1
+
+      - name: Build and Push Docker Image
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          docker build -t $ECR_REGISTRY/${{ env.REPOSITORY_NAME }}:$IMAGE_TAG ./image-api/
+          docker push $ECR_REGISTRY/${{ env.REPOSITORY_NAME }}:$IMAGE_TAG
+
+      - name: Update kubeconfig for EKS
+        run: |
+          aws eks update-kubeconfig --region ${{ secrets.AWS_REGION }} --name ${{ env.CLUSTER_NAME }}
+
+      - name: Helm Lint
+        run: helm lint ./helm
+
+      - name: Get EFS File System ID
+        id: get-efs-id
+        run: |
+          EFS_ID=$(aws efs describe-file-systems --query "FileSystems[0].FileSystemId" --region ${{ secrets.AWS_REGION }} --output text)
+          echo "EFS_ID=$EFS_ID" >> $GITHUB_ENV
+
+      - name: Deploy Helm Chart
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          IMAGE_TAG: ${{ github.sha }}
+          EFS_ID: ${{ env.EFS_ID }}
+        run: |
+          helm upgrade --install ${{ env.RELEASE_NAME }} ./helm \
+            --namespace ${{ env.NAMESPACE }} --create-namespace \
+            --set image.repository=$ECR_REGISTRY/${{ env.REPOSITORY_NAME }} \
+            --set image.tag=$IMAGE_TAG \
+            --set efs.fileSystemId=$EFS_ID
+
+      - name: Show Helm Deployment History
+        run: |
+          helm history ${{ env.RELEASE_NAME }} -n ${{ env.NAMESPACE }}
+
+  rollback:
+    name: Manual Helm Rollback
+    runs-on: ubuntu-latest
+    if: github.event_name == 'workflow_dispatch'
+
+    steps:
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      - name: Update kubeconfig for EKS
+        run: |
+          aws eks update-kubeconfig --region ${{ secrets.AWS_REGION }} --name ${{ env.CLUSTER_NAME }}
+
+      - name: Rollback Helm Release
+        run: |
+          if [ "${{ github.event.inputs.rollback_revision }}" != "0" ]; then
+            echo "Rolling back to revision ${{ github.event.inputs.rollback_revision }}..."
+            helm rollback ${{ env.RELEASE_NAME }} ${{ github.event.inputs.rollback_revision }} --namespace ${{ env.NAMESPACE }}
+          else
+            echo "Rolling back to previous revision..."
+            helm rollback ${{ env.RELEASE_NAME }} --namespace ${{ env.NAMESPACE }}
+          fi
+
+      - name: Show Helm Deployment History
+        run: |
+          helm history ${{ env.RELEASE_NAME }} -n ${{ env.NAMESPACE }}

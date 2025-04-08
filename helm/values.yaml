@@ -1,0 +1,126 @@
+# Global configurations
+global:
+  namespace: image-api
+
+# Image configurations
+image:
+  repository: 920373034247.dkr.ecr.us-east-2.amazonaws.com/image-api/image-api
+  tag: "latest"
+  pullPolicy: IfNotPresent
+
+# Replica and scaling configurations
+replicaCount: 3
+maxReplicas: 10
+minReplicas: 3
+
+# Resource configurations
+resources:
+  requests:
+    cpu: 100m
+    memory: 256Mi
+  limits:
+    cpu: 500m
+    memory: 512Mi
+
+# Autoscaling configurations
+autoscaling:
+  enabled: true
+  minReplicas: 3
+  maxReplicas: 10
+  targetCPUUtilizationPercentage: 70
+  targetMemoryUtilizationPercentage: 70
+
+# Storage configurations
+storage:
+  size: 5Gi
+  storageClassName: efs-sc
+
+# EFS configuration
+efs:
+  fileSystemId: "fs-04b580aec5a0e2491"
+
+# Service configurations
+service:
+  name: "image-api-service"
+  type: ClusterIP
+  port: 80
+  targetPort: 3000
+
+# Ingress configurations
+ingress:
+  enabled: true
+  scheme: "internet-facing"
+  targetType: "ip"
+  loadBalancerName: "image-api-alb"
+  listenPorts: '[{"HTTP": 80}, {"HTTPS": 443}]'
+  healthcheckPath: "/api/status"
+  host: "api.darpan.cloud"
+  certificateArn: "arn:aws:acm:us-east-1:123456789012:certificate/xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+  sslRedirect: true 
+
+# Node and Pod distribution
+nodeSelector:
+  nodegroup: image-api-nodes
+
+# Affinity to spread pods across AZs
+podAntiAffinity:
+  preferredDuringSchedulingIgnoredDuringExecution:
+  - weight: 100
+    podAffinityTerm:
+      labelSelector:
+        matchExpressions:
+        - key: app
+          operator: In
+          values:
+          - image-api
+      topologyKey: topology.kubernetes.io/zone
+
+# Probes configurations for liveness and readiness checks
+probes:
+  liveness:
+    path: "/api/status"
+    initialDelaySeconds: 30
+    periodSeconds: 10
+  readiness:
+    path: "/api/status"
+    initialDelaySeconds: 5
+    periodSeconds: 10
+
+# Termination grace period configuration for pods shutdowns.
+terminationGracePeriodSeconds: 30
+
+# Strategy for rolling updates.
+strategy:
+  rollingUpdate:
+    maxSurge: 1
+    maxUnavailable: 0
+
+# ServiceAccount configuration.
+serviceAccount:
+  create: true
+  name: "image-api-serviceaccount"
+
+# NetworkPolicy configuration.
+networkPolicy:
+  ingress:
+    namespace: "image-api"
+    ports:
+      - port: 80
+        protocol: TCP
+      - port: 443
+        protocol: TCP
+  egress:
+    enabled: true
+    cidr: "0.0.0.0/0"  
+    ports:
+      - port: 443
+        protocol: TCP
+      - port: 80
+        protocol: TCP
+
+
+# PersistentVolumeClaim configuration.
+volume:
+  claimName: "image-api-pvc"
+  mountPath: "/app/static"
+

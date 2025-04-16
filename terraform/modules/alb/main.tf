@@ -20,10 +20,10 @@ resource "helm_release" "aws_lb_controller" { # Deploy the AWS Load Balancer Con
   }
 }
 
-resource "null_resource" "apply_ingress" {
-  provisioner "local-exec" {
-    command = "kubectl apply -f ingress.yaml"
-  }
+# resource "null_resource" "apply_ingress" {
+#   provisioner "local-exec" {
+#     command = "kubectl apply -f ingress.yaml"
+#   }
 
-  depends_on = [helm_release.aws_lb_controller]
-}
+#   depends_on = [helm_release.aws_lb_controller]
+# }

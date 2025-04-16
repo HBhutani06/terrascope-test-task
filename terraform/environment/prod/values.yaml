@@ -28,7 +28,7 @@ grafana:
       kubernetes.io/ingress.class: "alb"
       alb.ingress.kubernetes.io/scheme: "internet-facing"
     hosts:
-      - "grafana.darpan.cloud"
+      - "grafana.example.cloud"
 
 alertmanager:
   enabled: true

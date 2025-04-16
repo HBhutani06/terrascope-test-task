@@ -37,7 +37,7 @@ storage:
 
 # EFS configuration
 efs:
-  fileSystemId: "fs-04b580aec5a0e2491"
+  fileSystemId: "fs-XXXXXXXXXX"
 
 # Service configurations
 service:
@@ -54,7 +54,7 @@ ingress:
   loadBalancerName: "image-api-alb"
   listenPorts: '[{"HTTP": 80}, {"HTTPS": 443}]'
   healthcheckPath: "/api/status"
-  host: "api.darpan.cloud"
+  host: "example.com"
   certificateArn: "arn:aws:acm:us-east-1:123456789012:certificate/xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
   sslRedirect: true 
 

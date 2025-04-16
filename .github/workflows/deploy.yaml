@@ -3,7 +3,7 @@ name: Build and Deploy Docker Image to EKS
 on:
   push:
     branches:
-      - bq-training-image-api-task
+      - main
 
   workflow_dispatch:
     inputs:
